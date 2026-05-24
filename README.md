@@ -17,18 +17,15 @@ CONSUMED is a high-performance, immersive web application designed to explore th
 ## 📸 Screenshots
 
 ### The Intro
-![The Intro](<img width="1437" height="685" alt="image" src="https://github.com/user-attachments/assets/1bf9cd37-ac78-434f-9d55-c0c417d798f7" />
-)
+<img width="1437" height="685" alt="The Intro" src="https://github.com/user-attachments/assets/1bf9cd37-ac78-434f-9d55-c0c417d798f7" />
 *The stark, quiet beginning.*
 
 ### The Feed Overload
-![The Feed Overload](<img width="1435" height="685" alt="image" src="https://github.com/user-attachments/assets/dcc163df-0cf4-46a1-bb28-57a447aa2683" />
-)
+<img width="1435" height="685" alt="The Feed Overload" src="https://github.com/user-attachments/assets/dcc163df-0cf4-46a1-bb28-57a447aa2683" />
 *The cinematic scroll sequence where the algorithm adapts.*
 
 ### The Silence
-![The Silence](<img width="1437" height="683" alt="image" src="https://github.com/user-attachments/assets/6c31defe-7127-4bf2-bb8c-c8f339766906" />
-)
+<img width="1437" height="683" alt="The Silence" src="https://github.com/user-attachments/assets/6c31defe-7127-4bf2-bb8c-c8f339766906" />
 *The chilling, isolated ending.*
 
 ---
