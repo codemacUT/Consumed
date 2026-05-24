@@ -168,50 +168,134 @@ export function HeroSequence() {
     let targetFrame = 0;
     let animationFrameId: number;
 
-    function renderFrame(index: number) {
-      if (!context || !canvas) return;
-      const roundedIndex = Math.round(index);
+    let lastRenderedFraction = -1; // Cache for redundant fractional renders
 
-      // Skip redundant redraws for the exact same frame
-      if (roundedIndex === lastRenderedFrame) return;
-
-      let img = images[roundedIndex];
-
+    function getValidImage(index: number): HTMLImageElement | null {
+      let img = images[index];
       if (!img || !img.complete) {
-        let fallbackIndex = roundedIndex - 1;
+        let fallbackIndex = index - 1;
         while (fallbackIndex >= 0 && (!images[fallbackIndex] || !images[fallbackIndex].complete)) {
           fallbackIndex--;
         }
-        if (fallbackIndex >= 0) {
-          img = images[fallbackIndex];
-        } else {
-          return;
-        }
+        if (fallbackIndex >= 0) return images[fallbackIndex];
+        return null;
+      }
+      return img;
+    }
+
+    function renderFrame(index: number) {
+      if (!context || !canvas) return;
+
+      const floorIndex = Math.floor(index);
+      const nextIndex = Math.min(floorIndex + 1, FRAME_COUNT - 1);
+      const fraction = index - floorIndex;
+
+      // Skip redundant redraws if sitting on the exact same sub-frame fraction
+      const cacheKey = Math.round(index * 100) / 100;
+      if (cacheKey === lastRenderedFraction) return;
+
+      const imgFloor = getValidImage(floorIndex);
+      if (!imgFloor) return;
+
+      if (renderDimensions.width === 0 && imgFloor.width > 0) {
+        calculateRenderDimensions(imgFloor);
       }
 
-      // Calculate dimensional math once instead of 60x a second
-      if (renderDimensions.width === 0 && img.width > 0) {
-        calculateRenderDimensions(img);
-      }
-
-      // Draw directly over previous frame to save GPU clearRect operations
       if (renderDimensions.width > 0) {
-        context.drawImage(img, renderDimensions.x, renderDimensions.y, renderDimensions.width, renderDimensions.height);
-        lastRenderedFrame = roundedIndex;
+        // Temporal Interpolation (Frame Blending)
+        // Only blend if the fraction is mathematically significant to save GPU
+        if (fraction > 0.05 && fraction < 0.95 && floorIndex !== nextIndex) {
+          const imgNext = getValidImage(nextIndex);
+          if (imgNext) {
+            // Draw baseline frame solid
+            context.globalAlpha = 1.0;
+            context.drawImage(imgFloor, renderDimensions.x, renderDimensions.y, renderDimensions.width, renderDimensions.height);
+            
+            // Draw next frame transparently over it
+            context.globalAlpha = fraction;
+            context.drawImage(imgNext, renderDimensions.x, renderDimensions.y, renderDimensions.width, renderDimensions.height);
+            
+            context.globalAlpha = 1.0; // Reset
+          } else {
+            context.globalAlpha = 1.0;
+            context.drawImage(imgFloor, renderDimensions.x, renderDimensions.y, renderDimensions.width, renderDimensions.height);
+          }
+        } else {
+          // Snap to solid single frame if very close to integer to keep absolute sharpness
+          context.globalAlpha = 1.0;
+          const imgToDraw = fraction > 0.5 ? (getValidImage(nextIndex) || imgFloor) : imgFloor;
+          context.drawImage(imgToDraw, renderDimensions.x, renderDimensions.y, renderDimensions.width, renderDimensions.height);
+        }
+        
+        lastRenderedFraction = cacheKey;
+        lastRenderedFrame = Math.round(index); // Preserve for backward compat
       }
     }
 
     updateDimensions();
 
+    let currentBlur = 0; // State to track blur independent of instantaneous velocity
+
     const renderLoop = () => {
       const diff = targetFrame - currentFrame;
+      const absVelocity = Math.abs(diff);
 
-      // Epsilon check: only render and do math if there is a noticeable difference
-      // This saves massive CPU when the scroll is paused
-      if (Math.abs(diff) > 0.01) {
-        // LERP: smoothly ease the current frame towards the target frame (10% closer per tick)
-        currentFrame += diff * 0.1;
-        renderFrame(currentFrame);
+      // We must keep looping until BOTH the frame is physically settled AND the blur has completely decayed
+      const isMotionSettled = absVelocity <= 0.005;
+      const isBlurSettled = currentBlur <= 0.1;
+
+      if (!isMotionSettled || !isBlurSettled) {
+        // 1. Emotional Pacing System
+        let baseFriction = 0.08;
+        if (currentFrame < 40) baseFriction = 0.04; 
+        else if (currentFrame < 90) baseFriction = 0.08; 
+        else if (currentFrame < 130) baseFriction = 0.12; 
+        else baseFriction = 0.18;
+
+        const velocityBoost = Math.min(absVelocity * 0.015, 0.2); 
+        let lerpFactor = baseFriction + velocityBoost;
+
+        // 3. Accelerated Micro-Settling Physics
+        // To prevent visible "sub-frame crawling" when velocity is extremely low,
+        // we artificially snap the friction curve to halt the camera cleanly.
+        if (absVelocity < 0.05) {
+          lerpFactor = 0.5; // Strong snap to rest
+        } else if (absVelocity < 0.5) {
+          lerpFactor *= 0.8; // Initial lens weight relax
+        }
+
+        // Apply physics only if motion is still active
+        if (!isMotionSettled) {
+          currentFrame += diff * lerpFactor;
+          renderFrame(currentFrame);
+        }
+        
+        // 4. Real-Time Algorithmic Visual Effects (Low-Pass Filter)
+        if (canvas) {
+          // Calculate target blur based on velocity
+          const targetBlur = Math.min(absVelocity * 0.35, 8);
+          
+          // LERP the blur itself (low-pass filter) so it decays smoothly even if velocity drops instantly
+          currentBlur += (targetBlur - currentBlur) * 0.15;
+          
+          const contrastAmount = 1 + Math.min(absVelocity * 0.015, 0.3);
+          const scaleAmount = 1 + Math.min(absVelocity * 0.001, 0.03);
+          
+          if (currentBlur > 0.1) {
+            canvas.style.filter = `blur(${currentBlur.toFixed(2)}px) contrast(${contrastAmount.toFixed(2)})`;
+            canvas.style.transform = `scale(${scaleAmount.toFixed(3)})`;
+            canvas.style.transition = 'none'; 
+          } else {
+            // Clean settling state
+            canvas.style.filter = 'blur(0px) contrast(1)';
+            canvas.style.transform = 'scale(1)';
+          }
+        }
+      } else if (canvas && canvas.style.transform !== 'scale(1)') {
+        // Absolute settling: ensure visual effects are perfectly zeroed out to save GPU
+        canvas.style.filter = 'blur(0px) contrast(1)';
+        canvas.style.transform = 'scale(1)';
+        canvas.style.transition = 'all 0.3s ease-out';
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);
