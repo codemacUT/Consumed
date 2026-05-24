@@ -14,7 +14,7 @@ if (typeof window !== "undefined") {
   ScrollTrigger.clearScrollMemory("manual");
 }
 
-const FRAME_COUNT = 240;
+const FRAME_COUNT = 160;
 
 export function HeroSequence() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,9 +32,28 @@ export function HeroSequence() {
     part3Ref: useRef<HTMLDivElement>(null),
   };
 
-  const [loadedCount, setLoadedCount] = useState(0);
+  const [networkLoadedCount, setNetworkLoadedCount] = useState(0);
+  const [displayLoadedCount, setDisplayLoadedCount] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [introVisible, setIntroVisible] = useState(false);
+
+  // Decouple display progress from raw network speed to guarantee a cinematic loading sequence duration
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDisplayLoadedCount(prev => {
+        if (prev < networkLoadedCount) {
+          const next = prev + 1;
+          if (next >= FRAME_COUNT) {
+            setIsReady(true);
+          }
+          return next;
+        }
+        return prev;
+      });
+    }, 15); // Minimum 3.6 second loading screen (15ms * 240 frames)
+
+    return () => clearInterval(interval);
+  }, [networkLoadedCount]);
 
   useEffect(() => {
     if (isReady) {
@@ -46,7 +65,7 @@ export function HeroSequence() {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
-    
+
     // Force scroll to top instantly, and again slightly later to beat GSAP/Lenis caches
     window.scrollTo(0, 0);
     const scrollTimeout = setTimeout(() => {
@@ -95,18 +114,15 @@ export function HeroSequence() {
     const loadNext = () => {
       if (loadIndex >= FRAME_COUNT) return;
       const currentIndex = loadIndex++;
-      
+
       const img = new Image();
       const frameNumber = (currentIndex + 1).toString().padStart(3, "0");
       img.src = `/assets/frames/ezgif-frame-${frameNumber}.jpg`;
-      
+
       const onComplete = () => {
         loaded++;
-        setLoadedCount(loaded);
-        // FORCE 100% BUFFERING: Do not start the experience until every single frame is loaded and decoded
-        if (loaded >= FRAME_COUNT) {
-          setIsReady(true);
-        }
+        setNetworkLoadedCount(loaded);
+        // isReady is now handled by the displayLoadedCount interval to enforce minimum duration
         if (loaded === 1 && playhead.frame === 0) {
           updateDimensions();
         }
@@ -118,7 +134,7 @@ export function HeroSequence() {
         img.decode().then(onComplete).catch(onComplete);
       };
       img.onerror = onComplete; // Move forward even if 404 to prevent hanging
-      
+
       images[currentIndex] = img;
     };
 
@@ -148,13 +164,17 @@ export function HeroSequence() {
       renderDimensions = { width: drawWidth, height: drawHeight, x: offsetX, y: offsetY };
     }
 
+    let currentFrame = 0;
+    let targetFrame = 0;
+    let animationFrameId: number;
+
     function renderFrame(index: number) {
       if (!context || !canvas) return;
       const roundedIndex = Math.round(index);
-      
+
       // Skip redundant redraws for the exact same frame
-      if (roundedIndex === lastRenderedFrame) return; 
-      
+      if (roundedIndex === lastRenderedFrame) return;
+
       let img = images[roundedIndex];
 
       if (!img || !img.complete) {
@@ -183,12 +203,28 @@ export function HeroSequence() {
 
     updateDimensions();
 
+    const renderLoop = () => {
+      const diff = targetFrame - currentFrame;
+
+      // Epsilon check: only render and do math if there is a noticeable difference
+      // This saves massive CPU when the scroll is paused
+      if (Math.abs(diff) > 0.01) {
+        // LERP: smoothly ease the current frame towards the target frame (10% closer per tick)
+        currentFrame += diff * 0.1;
+        renderFrame(currentFrame);
+      }
+
+      animationFrameId = requestAnimationFrame(renderLoop);
+    };
+
+    renderLoop();
+
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: container,
         start: "top top",
         end: "+=2000%", // Extended massive timeline to accommodate the ending sequence
-        scrub: 0.8, // Snappy initial response
+        scrub: 1.5, // Increased from 0.8 for buttery GSAP-native momentum
         pin: true,
       },
     });
@@ -206,8 +242,9 @@ export function HeroSequence() {
       ease: "none",
       duration: 10.0,
       onUpdate: () => {
-        // GSAP already syncs to requestAnimationFrame, so we call renderFrame directly
-        renderFrame(playhead.frame);
+        // Instead of directly rendering, we just update the target. 
+        // The continuous renderLoop handles the actual buttery easing.
+        targetFrame = playhead.frame;
       },
     }, 0);
 
@@ -234,7 +271,7 @@ export function HeroSequence() {
     }
 
     // --- ENDING SEQUENCE ANIMATIONS (Time 10.0 to 20.0) --- //
-    
+
     // Part 1: Silence (Time 10.5 to 13.5)
     if (endingRefs.part1Ref.current) {
       tl.fromTo(endingRefs.part1Ref.current, { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 1.5, ease: "power2.out" }, 10.5)
@@ -270,6 +307,7 @@ export function HeroSequence() {
     return () => {
       window.removeEventListener("resize", updateDimensions);
       clearTimeout(scrollTimeout);
+      cancelAnimationFrame(animationFrameId);
       tl.kill();
       ScrollTrigger.getAll().forEach(t => t.kill());
     };
@@ -277,7 +315,7 @@ export function HeroSequence() {
 
   return (
     <div ref={containerRef} className="relative w-full h-screen bg-black overflow-hidden font-sans">
-      
+
       <HeroIntro ref={introRef} introVisible={introVisible} />
 
       <HeroCanvas ref={canvasContainerRef} canvasRef={canvasRef}>
@@ -286,7 +324,7 @@ export function HeroSequence() {
 
       <HeroEnding refs={endingRefs} />
 
-      <HeroLoading isReady={isReady} loadedCount={loadedCount} frameCount={FRAME_COUNT} />
+      <HeroLoading isReady={isReady} loadedCount={displayLoadedCount} frameCount={FRAME_COUNT} />
 
     </div>
   );

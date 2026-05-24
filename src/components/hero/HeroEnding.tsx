@@ -25,14 +25,14 @@ export function HeroEnding({ refs }: HeroEndingProps) {
       </div>
 
       {/* Part 2: Exhaustion & HUD */}
-      <div ref={refs.hudRef} className="absolute inset-0 opacity-0 font-mono text-[10px] md:text-xs text-red-500/50 tracking-widest uppercase p-8 flex flex-col justify-between mix-blend-screen">
-        <div className="flex justify-between w-full">
-          <span>ATTENTION STATE: FATIGUED</span>
-          <span>SESSION ACTIVE</span>
+      <div ref={refs.hudRef} className="absolute inset-0 opacity-0 font-mono text-[8px] sm:text-[10px] md:text-xs text-red-500/50 tracking-widest uppercase p-4 md:p-8 flex flex-col justify-between mix-blend-screen">
+        <div className="flex flex-col md:flex-row justify-between w-full gap-1 md:gap-0">
+          <span className="text-left">ATTENTION STATE: FATIGUED</span>
+          <span className="text-left md:text-right">SESSION ACTIVE</span>
         </div>
-        <div className="flex justify-between w-full">
-          <span>RETENTION TARGET ACHIEVED</span>
-          <span>RECOMMENDATION LOOP COMPLETE</span>
+        <div className="flex flex-col md:flex-row justify-between w-full gap-1 md:gap-0">
+          <span className="text-left">RETENTION TARGET ACHIEVED</span>
+          <span className="text-left md:text-right">RECOMMENDATION LOOP COMPLETE</span>
         </div>
       </div>
 
