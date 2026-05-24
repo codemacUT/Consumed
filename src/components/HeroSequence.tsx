@@ -90,32 +90,12 @@ export function HeroSequence() {
 
     const images: HTMLImageElement[] = new Array(FRAME_COUNT);
     let loaded = 0;
+    let loadIndex = 0;
 
-    // Preload first 10 immediately for instant readiness
-    for (let i = 0; i < Math.min(10, FRAME_COUNT); i++) {
-      const img = new Image();
-      const frameNumber = (i + 1).toString().padStart(3, "0");
-      img.src = `/assets/frames/ezgif-frame-${frameNumber}.jpg`;
-      img.onload = () => {
-        loaded++;
-        setLoadedCount(loaded);
-        if (loaded >= Math.min(10, FRAME_COUNT)) {
-          setIsReady(true);
-        }
-        if (loaded === 1 && playhead.frame === 0) {
-          updateDimensions();
-        }
-      };
-      images[i] = img;
-    }
-
-    // Lazy load the rest in sequential batches to prevent network congestion lag
-    let lazyIndex = 10;
     const loadNext = () => {
-      if (lazyIndex >= FRAME_COUNT) return;
-      const currentIndex = lazyIndex;
-      lazyIndex++;
-
+      if (loadIndex >= FRAME_COUNT) return;
+      const currentIndex = loadIndex++;
+      
       const img = new Image();
       const frameNumber = (currentIndex + 1).toString().padStart(3, "0");
       img.src = `/assets/frames/ezgif-frame-${frameNumber}.jpg`;
@@ -123,6 +103,13 @@ export function HeroSequence() {
       const onComplete = () => {
         loaded++;
         setLoadedCount(loaded);
+        // FORCE 100% BUFFERING: Do not start the experience until every single frame is loaded and decoded
+        if (loaded >= FRAME_COUNT) {
+          setIsReady(true);
+        }
+        if (loaded === 1 && playhead.frame === 0) {
+          updateDimensions();
+        }
         loadNext(); // Chain the loading
       };
 
@@ -135,11 +122,12 @@ export function HeroSequence() {
       images[currentIndex] = img;
     };
 
+    // Spin up 15 concurrent loading workers to max out HTTP/2 multiplexing for fast cloud delivery
     setTimeout(() => {
-      loadNext();
-      loadNext();
-      loadNext(); // Run 3 concurrent loading workers
-    }, 100);
+      for (let i = 0; i < 15; i++) {
+        loadNext();
+      }
+    }, 50);
 
     function calculateRenderDimensions(img: HTMLImageElement) {
       if (!canvas) return;
