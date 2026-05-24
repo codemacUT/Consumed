@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 
 interface HeroCanvasProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   children?: React.ReactNode;
 }
 

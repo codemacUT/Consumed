@@ -1,10 +1,10 @@
 interface HeroEndingProps {
   refs: {
-    part1Ref: React.RefObject<HTMLDivElement>;
-    part1bRef: React.RefObject<HTMLDivElement>;
-    hudRef: React.RefObject<HTMLDivElement>;
-    textRef: React.RefObject<HTMLDivElement>;
-    part3Ref: React.RefObject<HTMLDivElement>;
+    part1Ref: React.RefObject<HTMLDivElement | null>;
+    part1bRef: React.RefObject<HTMLDivElement | null>;
+    hudRef: React.RefObject<HTMLDivElement | null>;
+    textRef: React.RefObject<HTMLDivElement | null>;
+    part3Ref: React.RefObject<HTMLDivElement | null>;
   };
 }
 
